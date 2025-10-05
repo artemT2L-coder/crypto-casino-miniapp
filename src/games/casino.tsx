@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+type DistRow = { name: string; prob: number; mul: [number, number] };
+
 
 /** ================== Utils ================== **/
 function clamp(n:number,a:number,b:number){return Math.max(a,Math.min(b,n));}
@@ -19,19 +21,19 @@ const ASSET_META:Record<AssetKey,{name:string;color:string;risk:"низкий"|"
 };
 
 /** ================== Distributions (harder) ================== **/
-const BASE_MEME=[
-  {name:"rug",prob:0.42,mul:[0.0,0.25]},
-  {name:"meh",prob:0.33,mul:[0.7,1.15]},
-  {name:"moon",prob:0.25,mul:[1.8,6.0]},
+const BASE_MEME: DistRow[] = [
+  { name: "rug",  prob: 0.42, mul: [0.0, 0.25] },
+  { name: "meh",  prob: 0.33, mul: [0.7, 1.15] },
+  { name: "moon", prob: 0.25, mul: [1.8, 6.0] },
 ];
-const DISTRIBUTIONS:Record<AssetKey,{name:string;prob:number;mul:[number,number]}[]>={
-  BTC:[{name:"dip",prob:0.28,mul:[0.88,0.97]},{name:"flat",prob:0.47,mul:[0.97,1.05]},{name:"pump",prob:0.25,mul:[1.05,1.12]}],
-  ETH:[{name:"dump",prob:0.34,mul:[0.7,0.9]},{name:"normal",prob:0.41,mul:[0.9,1.18]},{name:"pump",prob:0.25,mul:[1.18,1.5]}],
-  TON:[{name:"dip",prob:0.34,mul:[0.75,0.95]},{name:"normal",prob:0.41,mul:[0.95,1.25]},{name:"hype",prob:0.25,mul:[1.25,1.8]}],
-  SOL:[{name:"outage",prob:0.3,mul:[0.5,0.85]},{name:"normal",prob:0.44,mul:[0.9,1.28]},{name:"speed_hype",prob:0.26,mul:[1.28,1.7]}],
-  MEME:BASE_MEME,NOTSCAM:BASE_MEME,MAMONT:BASE_MEME,LOUSHARIO:BASE_MEME,CATJAM:BASE_MEME,MOONWIF:BASE_MEME,BANANA:BASE_MEME,
-  CASINO:[{name:"lose",prob:0.58,mul:[0.0,0.0]},{name:"win",prob:0.42,mul:[1.5,2.0]}],
-  LAUNCH:[{name:"rugpull",prob:0.82,mul:[0.0,0.2]},{name:"ok_start",prob:0.13,mul:[0.8,1.5]},{name:"mega_pump",prob:0.05,mul:[4.0,80.0]}],
+const DISTRIBUTIONS: Record<AssetKey, DistRow[]> = {
+  BTC:   [{ name:"dip",   prob:0.28, mul:[0.88,0.97] }, { name:"flat", prob:0.47, mul:[0.97,1.05] }, { name:"pump", prob:0.25, mul:[1.05,1.12] }],
+  ETH:   [{ name:"dump",  prob:0.34, mul:[0.7,0.9]   }, { name:"normal",prob:0.41, mul:[0.9,1.18]  }, { name:"pump", prob:0.25, mul:[1.18,1.5]  }],
+  TON:   [{ name:"dip",   prob:0.34, mul:[0.75,0.95] }, { name:"normal",prob:0.41, mul:[0.95,1.25] }, { name:"hype", prob:0.25, mul:[1.25,1.8] }],
+  SOL:   [{ name:"outage",prob:0.3,  mul:[0.5,0.85]  }, { name:"normal",prob:0.44, mul:[0.9,1.28]  }, { name:"speed_hype", prob:0.26, mul:[1.28,1.7] }],
+  MEME: BASE_MEME, NOTSCAM: BASE_MEME, MAMONT: BASE_MEME, LOUSHARIO: BASE_MEME, CATJAM: BASE_MEME, MOONWIF: BASE_MEME, BANANA: BASE_MEME,
+  CASINO:[{ name:"lose",  prob:0.58, mul:[0.0,0.0]   }, { name:"win",  prob:0.42, mul:[1.5,2.0]   }],
+  LAUNCH:[{ name:"rugpull",prob:0.82, mul:[0.0,0.2]  }, { name:"ok_start",prob:0.13, mul:[0.8,1.5] }, { name:"mega_pump", prob:0.05, mul:[4.0,80.0] }],
 };
 
 /** ================== Rumors & News ================== **/
@@ -92,12 +94,12 @@ const SHOP_ITEMS:ShopItem[]=[
   {id:"car_veyron",  name:"Bugatti Veyron",      price:1300000, cat:"car"},
   {id:"car_chiron",  name:"Bugatti Chiron",      price:3000000, cat:"car"},
   // Недвижимость
-  {id:"re_stalinka", name:"Квартира в сталинке",       price:200000, cat:"realty"},
+  {id:"re_stalinka", name:"Квартира в сталинке",       price:150000, cat:"realty"},
   {id:"re_new",      name:"Квартира в новом ЖК",       price:180000, cat:"realty"},
   {id:"re_center",   name:"Квартира в центре города",  price:350000, cat:"realty"},
-  {id:"re_city",     name:"Квартира в Москва-Сити",    price:800000, cat:"realty"},
-  {id:"re_cottage",  name:"Коттедж",                    price:450000, cat:"realty"},
-  {id:"re_spain",    name:"Дом в Испании",              price:650000, cat:"realty"},
+  {id:"re_city",     name:"Квартира в Москва-Сити",    price:500000, cat:"realty"},
+  {id:"re_cottage",  name:"Коттедж",                    price:650000, cat:"realty"},
+  {id:"re_spain",    name:"Дом в Испании",              price:800000, cat:"realty"},
 ];
 type OwnedItem = { id:string; name:string; value:number; cat:"car"|"realty" };
 
@@ -260,14 +262,25 @@ export default function App(){
     setPortfolio(p=>[...p,{id:item.id,name:item.name,value:item.price,cat:item.cat}]);
   }
 
-  function resetRun(save=true){
-    if(save){
-      const row:ScoreRow={name:name?.trim()||"Аноним",net:bank+portfolioValue,bestX:Math.round(bestX*100)/100,rounds:round-1,date:new Date().toISOString()};
-      const rows=[...lb,row].sort((a,b)=>b.net-a.net).slice(0,20); setLb(rows); saveLB(rows);
-    }
-    setBank(1000); setBet(100); setAsset(null); setStep("rumor"); setRumor(null); setNews(null); setDelta(0);
-    setRound(1); setBestX(1); setOwned([]); setEffects([]); setPortfolio([]); setMood("neutral"); setMoodLeft(0);
-  }
+function saveToLB(){
+  const row:ScoreRow={
+    name: name?.trim() || "Аноним",
+    net: bank + portfolioValue,
+    bestX: Math.round(bestX*100)/100,
+    rounds: round-1,
+    date: new Date().toISOString()
+  };
+  const rows=[...lb,row].sort((a,b)=>b.net-a.net).slice(0,20);
+  setLb(rows); saveLB(rows);
+}
+
+function resetRun(){
+  setBank(1000); setBet(100); setAsset(null); setStep("rumor");
+  setRumor(null); setNews(null); setDelta(0);
+  setRound(1); setBestX(1); setOwned([]); setEffects([]);
+  setPortfolio([]); setMood("neutral"); setMoodLeft(0);
+}
+
 
   async function share(){
     const txt=`Я сделал нетворт ${currency(bank+portfolioValue)} и x${(Math.round(bestX*100)/100).toFixed(2)} в Simulator Crypto Investor!`;
@@ -289,7 +302,7 @@ export default function App(){
         </div>
         <div className="flex items-center gap-2">
           <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="ник" className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-white/30"/>
-          <button onClick={()=>resetRun(false)} className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm">Новая игра</button>
+<button onClick={resetRun} className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm">Новая игра</button>
         </div>
       </header>
 
@@ -307,9 +320,21 @@ export default function App(){
             <div className="text-xs text-white/50">Нетворт: <span className="font-medium text-white/80">{currency(bank+portfolioValue)}</span></div>
           </div>
           <div className="sm:col-span-2 flex gap-2">
-            <button onClick={share} className="px-3 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-600">Поделиться</button>
-            <button onClick={()=>resetRun()} className="px-3 py-2 rounded-xl bg-rose-600/90 hover:bg-rose-600">Сохранить в таблицу</button>
-          </div>
+  <button
+    onClick={share}
+    className="px-3 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-600"
+  >
+    Поделиться
+  </button>
+
+  <button
+    onClick={saveToLB}
+    className="px-3 py-2 rounded-xl bg-fuchsia-600/90 hover:bg-fuchsia-600"
+  >
+    Сохранить в таблицу
+  </button>
+</div>
+
         </section>
 
         {/* Rumor */}
@@ -347,52 +372,6 @@ export default function App(){
           </div>
         </section>
 
-        {/* NEW: Asset Shop (cars/realty) */}
-        <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
-          <h3 className="font-semibold mb-2">Магазин активов</h3>
-
-          <div className="text-xs text-white/60 mb-1">Автомобили</div>
-          <div className="grid sm:grid-cols-3 gap-3 mb-3">
-            {SHOP_ITEMS.filter(i=>i.cat==="car").map(i=>(
-              <div key={i.id} className="rounded-xl border border-white/10 p-3 bg-white/5">
-                <div className="font-medium">{i.name}</div>
-                <div className="text-sm text-white/70 mb-2">{currency(i.price)}</div>
-                <button onClick={()=>buyItem(i)} disabled={bank<i.price} className={`px-3 py-1.5 rounded-lg text-sm ${bank<i.price?"bg-white/10 text-white/40":"bg-white/20 hover:bg-white/30"}`}>Купить</button>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-xs text-white/60 mb-1">Недвижимость</div>
-          <div className="grid sm:grid-cols-3 gap-3">
-            {SHOP_ITEMS.filter(i=>i.cat==="realty").map(i=>(
-              <div key={i.id} className="rounded-xl border border-white/10 p-3 bg-white/5">
-                <div className="font-medium">{i.name}</div>
-                <div className="text-sm text-white/70 mb-2">{currency(i.price)}</div>
-                <button onClick={()=>buyItem(i)} disabled={bank<i.price} className={`px-3 py-1.5 rounded-lg text-sm ${bank<i.price?"bg-white/10 text-white/40":"bg-white/20 hover:bg-white/30"}`}>Купить</button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Portfolio list */}
-        <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">Портфель</h3>
-            <div className="text-sm text-white/70">{currency(portfolioValue)}</div>
-          </div>
-          {portfolio.length===0 ? (
-            <div className="text-white/60 text-sm">Пока пусто. Купи авто или недвижимость в магазине.</div>
-          ) : (
-            <div className="grid gap-2">
-              {portfolio.map((it,idx)=>(
-                <div key={it.id+idx} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                  <div className="text-sm">{it.name}</div>
-                  <div className="text-sm text-white/70">{currency(it.value)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
 
         {/* Asset grid */}
         <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
@@ -454,6 +433,53 @@ export default function App(){
             )}
           </section>
         )}
+
+        {/* NEW: Asset Shop (cars/realty) */}
+        <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
+          <h3 className="font-semibold mb-2">Магазин активов</h3>
+
+          <div className="text-xs text-white/60 mb-1">Автомобили</div>
+          <div className="grid sm:grid-cols-3 gap-3 mb-3">
+            {SHOP_ITEMS.filter(i=>i.cat==="car").map(i=>(
+              <div key={i.id} className="rounded-xl border border-white/10 p-3 bg-white/5">
+                <div className="font-medium">{i.name}</div>
+                <div className="text-sm text-white/70 mb-2">{currency(i.price)}</div>
+                <button onClick={()=>buyItem(i)} disabled={bank<i.price} className={`px-3 py-1.5 rounded-lg text-sm ${bank<i.price?"bg-white/10 text-white/40":"bg-white/20 hover:bg-white/30"}`}>Купить</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-xs text-white/60 mb-1">Недвижимость</div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {SHOP_ITEMS.filter(i=>i.cat==="realty").map(i=>(
+              <div key={i.id} className="rounded-xl border border-white/10 p-3 bg-white/5">
+                <div className="font-medium">{i.name}</div>
+                <div className="text-sm text-white/70 mb-2">{currency(i.price)}</div>
+                <button onClick={()=>buyItem(i)} disabled={bank<i.price} className={`px-3 py-1.5 rounded-lg text-sm ${bank<i.price?"bg-white/10 text-white/40":"bg-white/20 hover:bg-white/30"}`}>Купить</button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Portfolio list */}
+        <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold">Портфель</h3>
+            <div className="text-sm text-white/70">{currency(portfolioValue)}</div>
+          </div>
+          {portfolio.length===0 ? (
+            <div className="text-white/60 text-sm">Пока пусто. Купи авто или недвижимость в магазине.</div>
+          ) : (
+            <div className="grid gap-2">
+              {portfolio.map((it,idx)=>(
+                <div key={it.id+idx} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="text-sm">{it.name}</div>
+                  <div className="text-sm text-white/70">{currency(it.value)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Leaderboard */}
         <section className="rounded-2xl p-4 border border-white/10 bg-white/5">
