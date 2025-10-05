@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/telegram-webhook.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
