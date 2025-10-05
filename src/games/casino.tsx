@@ -39,7 +39,15 @@ const DISTRIBUTIONS: Record<AssetKey, DistRow[]> = {
 /** ================== Rumors & News ================== **/
 interface Bias{pump_prob_delta?:number;dip_prob_delta?:number;rug_prob_delta?:number}
 interface Rumor{ id:string;text:string;affects:(AssetKey|"ALL")[];weight:number;bias?:Partial<Record<AssetKey|"ALL",Bias>> }
-interface News{ id:string;type:"positive"|"negative";text:string;affects:(AssetKey|"ALL")[];impact?:Partial<Record<AssetKey|"ALL",{mul:[number,number]}>>;weight:number }
+interface News{
+  id: string;
+  type: "positive" | "negative" | "neutral";
+  text: string;
+  affects: (AssetKey | "ALL")[];
+  impact?: Partial<Record<AssetKey | "ALL", { mul: [number, number] }>>;
+  weight: number;
+  credibility?: number; // 0..1 — вероятность, что рынок «поверит» новости
+}
 
 const RUMORS:Rumor[]=[
   {id:"r_musk",text:"Слух: Маск готовит твит про DOGE…",affects:["MEME","NOTSCAM","MAMONT","LOUSHARIO","CATJAM","MOONWIF","BANANA"],weight:8,bias:{MEME:{pump_prob_delta:+0.05}}},
@@ -48,16 +56,39 @@ const RUMORS:Rumor[]=[
   {id:"r_whales",text:"Киты двигают рынок.",affects:["BTC","ETH"],weight:5,bias:{BTC:{pump_prob_delta:+0.03},ETH:{pump_prob_delta:+0.04}}},
 ];
 
-const NEWS:News[]=[
-  {id:"n_hack",type:"negative",text:"Крупная биржа взломана — выводы заморожены.",affects:["ALL"],weight:10,impact:{ALL:{mul:[0.4,0.85]}}},
-  {id:"n_reg",type:"negative",text:"Регулятор заблокировал торговлю в ЕС.",affects:["ALL"],weight:9,impact:{ALL:{mul:[0.5,0.9]}}},
-  {id:"n_bug",type:"negative",text:"Баг в популярном протоколе.",affects:["ETH"],weight:7,impact:{ETH:{mul:[0.6,0.95]}}}, 
-  {id:"n_whale",type:"positive",text:"Киты скупают BTC.",affects:["BTC"],weight:6,impact:{BTC:{mul:[1.02,1.15]}}},
-  {id:"n_ton",type:"positive",text:"TON объявил о партнёрстве.",affects:["TON"],weight:7,impact:{TON:{mul:[1.4,2.2]}}},
-  {id:"n_doge",type:"positive",text:"‘Doge to the moon!’ — в трендах.",affects:["MEME","BANANA","CATJAM"],weight:7,impact:{MEME:{mul:[1.6,3.5]}}}, 
-  {id:"n_black_swan",type:"negative",text:"Чёрный лебедь: системный сбой по рынку.",affects:["ALL"],weight:2,impact:{ALL:{mul:[0.1,0.4]}}}, 
-  {id:"n_golden",type:"positive",text:"Золотой момент: массовый хайп.",affects:["ALL"],weight:1,impact:{ALL:{mul:[1.8,3.0]}}},
+const NEWS: News[] = [
+  // макро и широкие
+  { id:"n_cpi_up",   type:"negative", text:"Инфляция выше ожиданий (CPI): рынки нервничают.", affects:["ALL"], weight:8, credibility:0.8, impact:{ ALL:{ mul:[0.85,0.97] } } },
+  { id:"n_cpi_down", type:"positive", text:"Инфляция замедляется: на рынках облегчение.",     affects:["ALL"], weight:7, credibility:0.8, impact:{ ALL:{ mul:[1.02,1.12] } } },
+  { id:"n_fed_hike", type:"negative", text:"ФРС намекает на повышение ставки.",               affects:["ALL"], weight:7, credibility:0.75, impact:{ ALL:{ mul:[0.83,0.95] } } },
+  { id:"n_fed_pause",type:"positive", text:"ФРС делает паузу: риск-аппетит растёт.",          affects:["ALL"], weight:6, credibility:0.7,  impact:{ ALL:{ mul:[1.03,1.15] } } },
+  { id:"n_etf_ok",   type:"positive", text:"Одобрен спот-ETF: приток капитала.",              affects:["BTC","ETH"], weight:6, credibility:0.85, impact:{ BTC:{mul:[1.05,1.18]}, ETH:{mul:[1.03,1.12]} } },
+  { id:"n_liq_out",  type:"negative", text:"Отток ликвидности с бирж.",                       affects:["ALL"], weight:6, credibility:0.7,  impact:{ ALL:{ mul:[0.70,0.95] } } },
+
+  // сети/монеты
+  { id:"n_sol_outage", type:"negative", text:"Сбой в сети Solana.",                           affects:["SOL"], weight:6, credibility:0.9,  impact:{ SOL:{ mul:[0.60,0.90] } } },
+  { id:"n_ton_tg",     type:"positive", text:"Интеграция TON в сервисы Telegram.",            affects:["TON"], weight:7, credibility:0.85, impact:{ TON:{ mul:[1.20,1.80] } } },
+  { id:"n_eth_upgrade",type:"positive", text:"Апгрейд Ethereum прошёл успешно.",              affects:["ETH"], weight:6, credibility:0.85, impact:{ ETH:{ mul:[1.05,1.25] } } },
+  { id:"n_btc_halv",   type:"positive", text:"Халвинг BTC близко — хайп растёт.",             affects:["BTC"], weight:5, credibility:0.7,  impact:{ BTC:{ mul:[1.02,1.15] } } },
+  { id:"n_whales_dist",type:"negative", text:"Киты распределяют монеты на росте.",           affects:["BTC","ETH","SOL"], weight:5, credibility:0.7, impact:{ ALL:{ mul:[0.90,0.99] } } },
+
+  // мемки/дефай
+  { id:"n_meme_trend", type:"positive", text:"Мем-сезон: токены в трендах.",                  affects:["MEME","NOTSCAM","MAMONT","LOUSHARIO","CATJAM","MOONWIF","BANANA"], weight:7, credibility:0.75, impact:{ ALL:{ mul:[1.10,1.80] } } },
+  { id:"n_airdrop",    type:"positive", text:"Новый крупный airdrop — активность растёт.",   affects:["ALL"], weight:5, credibility:0.6,  impact:{ ALL:{ mul:[1.01,1.12] } } },
+
+  // плохое
+  { id:"n_hack",       type:"negative", text:"Крупная биржа взломана — выводы заморожены.",  affects:["ALL"], weight:9, credibility:0.9,  impact:{ ALL:{ mul:[0.40,0.85] } } },
+  { id:"n_reg",        type:"negative", text:"Регулятор ужесточает правила в ЕС.",           affects:["ALL"], weight:7, credibility:0.8,  impact:{ ALL:{ mul:[0.50,0.90] } } },
+  { id:"n_black_swan", type:"negative", text:"Чёрный лебедь: системный сбой по рынку.",      affects:["ALL"], weight:2, credibility:0.95, impact:{ ALL:{ mul:[0.10,0.40] } } },
+
+  // нейтральные/вбросы — часто не влияют
+  { id:"n_neutral1",   type:"neutral",  text:"Громкая новость, но рынок почти не реагирует.", affects:["ALL"], weight:5, credibility:0.3,  impact:{ ALL:{ mul:[0.98,1.02] } } },
+  { id:"n_rumor_fake", type:"neutral",  text:"Вброс в соцсетях: слухи опровергают.",         affects:["ALL"], weight:4, credibility:0.2,  impact:{ ALL:{ mul:[0.97,1.03] } } },
+
+  // немного старых для разнообразия
+  { id:"n_whale",      type:"positive", text:"Киты скупают BTC.",                             affects:["BTC"], weight:6, credibility:0.9,  impact:{ BTC:{ mul:[1.02,1.15] } } },
 ];
+
 
 /** ================== Upgrades (nerfed) ================== **/
 type BuffId = "u_ins" | "u_cash" | "u_floor" | "u_reroll" | "u_meme_pr" | "u_launch_bias";
@@ -134,7 +165,19 @@ function pickOutcome(asset:AssetKey, rumor:Rumor|null, owned:OwnedBuff[]):{ name
 }
 function pickRumor(selected:AssetKey|null){const list=RUMORS.map(r=>({...r})); if(selected) list.forEach(r=>{if(r.affects.includes(selected)||r.affects.includes("ALL")) r.weight+=2;}); return choiceWeighted(list);}
 function pickNews(afterBet:AssetKey){const list=NEWS.map(n=>({...n})); list.forEach(n=>{if(n.affects.includes(afterBet)||n.affects.includes("ALL")) n.weight+=3;}); return choiceWeighted(list);}
-function applyNewsMul(asset:AssetKey, news:News|null, mul:number){ if(!news) return mul; const rule=(news.impact?.[asset])||(news.impact?.ALL); if(!rule) return mul; const [a,b]=rule.mul; return mul*range(a,b);}
+function applyNewsMul(asset:AssetKey, news:News|null, mul:number){
+  if(!news) return mul;
+  const rule = (news.impact?.[asset]) || (news.impact?.ALL);
+  if(!rule) return mul; // нет явного влияния — игнорируем
+
+  // шанс, что рынок «поверит» и это реально повлияет
+  const cred = news.credibility ?? 0.7;
+  if (Math.random() > cred) return mul; // проигнорировали новость
+
+  const [a,b] = rule.mul;
+  return mul * range(a,b);
+}
+
 
 /** ================== UI atoms ================== **/
 function RiskBadge({a}:{a:AssetKey}){const r=ASSET_META[a].risk; const color=r==="низкий"?"bg-emerald-600":r==="средний"?"bg-amber-600":r==="высокий"?"bg-rose-600":"bg-purple-700"; return <span className={`text-white text-[10px] px-2 py-0.5 rounded-full ${color}`}>{r.toUpperCase()}</span>;}
@@ -167,6 +210,8 @@ export default function App(){
   const [owned,setOwned]=useState<OwnedBuff[]>([]);
   const [effects,setEffects]=useState<string[]>([]);
   const bankrupt=bank<=0;
+  const [helpOpen, setHelpOpen] = useState(false);
+
 
   // NEW: market mood + duration
   const [mood,setMood]=useState<MarketMood>("neutral");
@@ -298,7 +343,16 @@ function resetRun(){
       <header className="max-w-3xl mx-auto pt-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Simulator Crypto Investor <span className="text-white/60">MiniApp</span></h1>
-          <p className="text-sm text-white/60">Твоя карьера инвестора: крипта, активы и настроение рынка.</p>
+        
+        <p className="text-sm text-white/60 flex items-center gap-2">
+  Твоя карьера инвестора: крипта, активы и настроение рынка.
+  <button
+    onClick={()=>setHelpOpen(true)}
+    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 text-xs"
+    aria-label="Помощь"
+  >?</button>
+</p>
+
         </div>
         <div className="flex items-center gap-2">
           <input value={name} onChange={(e)=>setName(e.target.value)} placeholder="ник" className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-white/30"/>
@@ -512,6 +566,25 @@ function resetRun(){
 
         <footer className="text-center text-xs text-white/40 pt-4">Сделано для предпросмотра. Симулятор инвестора: не финсовет 🙃</footer>
       </main>
+      {helpOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="max-w-lg w-full rounded-2xl bg-[#131826] border border-white/10 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold">Как играть</h3>
+        <button onClick={()=>setHelpOpen(false)} className="text-white/60 hover:text-white">✕</button>
+      </div>
+      <div className="text-sm text-white/70 space-y-2">
+        <p>1) Выбирай <b>крипто-актив</b>, ставь сумму и крути судьбу. На результат влияют слухи, новости и настроение рынка.</p>
+        <p>2) Покупай <b>активы в магазине</b> (авто/недвижимость) — они добавляют стоимость в <b>портфель</b>. Портфель дрейфует ±1% каждый раунд.</p>
+        <p>3) <b>Бафы</b> помогают: страховка, кэшбэк, стоп-лосс, переролл новостей и т.д.</p>
+        <p>4) <b>Настроение рынка</b>: Паника → всем больнее; Альтсезон → буст хард-риску.</p>
+        <p>5) «<b>Сохранить в таблицу</b>» — просто сохраняет результат; «<b>Новая игра</b>» — старт с $1000.</p>
+        <p className="text-white/50">Игра. Не финсовет 🙃</p>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
